@@ -38,7 +38,7 @@ from tqdm import tqdm, trange
 from torch.nn import MSELoss
 
 from transformer.file_utils import WEIGHTS_NAME, CONFIG_NAME
-from transformer.modeling import TinyBertForPreTraining, BertModel
+from transformer.modeling import TinyBertForPreTraining, BertModel, BertConfig
 from transformer.tokenization import BertTokenizer
 from transformer.optimization import BertAdam
 
@@ -80,16 +80,16 @@ def convert_example_to_features(example, tokenizer, max_seq_length):
     input_ids = tokenizer.convert_tokens_to_ids(tokens)
     masked_label_ids = tokenizer.convert_tokens_to_ids(masked_lm_labels)
 
-    input_array = np.zeros(max_seq_length, dtype=np.int)
+    input_array = np.zeros(max_seq_length, dtype=np.int32)
     input_array[:len(input_ids)] = input_ids
 
-    mask_array = np.zeros(max_seq_length, dtype=np.bool)
+    mask_array = np.zeros(max_seq_length, dtype=bool)
     mask_array[:len(input_ids)] = 1
 
-    segment_array = np.zeros(max_seq_length, dtype=np.bool)
+    segment_array = np.zeros(max_seq_length, dtype=bool)
     segment_array[:len(segment_ids)] = segment_ids
 
-    lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
+    lm_label_array = np.full(max_seq_length, dtype=np.int32, fill_value=-1)
     lm_label_array[masked_lm_positions] = masked_label_ids
 
     features = InputFeatures(input_ids=input_array,
@@ -125,20 +125,20 @@ class PregeneratedDataset(Dataset):
             input_ids = np.memmap(filename=self.working_dir/'input_ids.memmap',
                                   mode='w+', dtype=np.int32, shape=(num_samples, seq_len))
             input_masks = np.memmap(filename=self.working_dir/'input_masks.memmap',
-                                    shape=(num_samples, seq_len), mode='w+', dtype=np.bool)
+                                    shape=(num_samples, seq_len), mode='w+', dtype=bool)
             segment_ids = np.memmap(filename=self.working_dir/'segment_ids.memmap',
-                                    shape=(num_samples, seq_len), mode='w+', dtype=np.bool)
+                                    shape=(num_samples, seq_len), mode='w+', dtype=bool)
             lm_label_ids = np.memmap(filename=self.working_dir/'lm_label_ids.memmap',
                                      shape=(num_samples, seq_len), mode='w+', dtype=np.int32)
             lm_label_ids[:] = -1
             is_nexts = np.memmap(filename=self.working_dir/'is_nexts.memmap',
-                                 shape=(num_samples,), mode='w+', dtype=np.bool)
+                                 shape=(num_samples,), mode='w+', dtype=bool)
         else:
             input_ids = np.zeros(shape=(num_samples, seq_len), dtype=np.int32)
-            input_masks = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
-            segment_ids = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
+            input_masks = np.zeros(shape=(num_samples, seq_len), dtype=bool)
+            segment_ids = np.zeros(shape=(num_samples, seq_len), dtype=bool)
             lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
-            is_nexts = np.zeros(shape=(num_samples,), dtype=np.bool)
+            is_nexts = np.zeros(shape=(num_samples,), dtype=bool)
 
         logging.info("Loading training examples for epoch {}".format(epoch))
 
@@ -338,7 +338,37 @@ def main():
     if args.continue_train:
         student_model = TinyBertForPreTraining.from_pretrained(args.student_model)
     else:
-        student_model = TinyBertForPreTraining.from_scratch(args.student_model)
+        # Load student config and create model from scratch
+        # Check if student_model is a directory with config or just a config file
+        if os.path.isdir(args.student_model):
+            config_file = os.path.join(args.student_model, 'config.json')
+        else:
+            config_file = args.student_model
+            
+        # Load config
+        with open(config_file, 'r') as f:
+            config_dict = json.load(f)
+        
+        # Handle vocab_size for BertConfig initialization
+        vocab_size = config_dict.pop('vocab_size', 30522)
+        
+        # Filter out fields that BertConfig doesn't accept
+        valid_config_keys = {
+            'attention_probs_dropout_prob', 'hidden_act', 'hidden_dropout_prob',
+            'hidden_size', 'initializer_range', 'intermediate_size', 
+            'max_position_embeddings', 'num_attention_heads', 'num_hidden_layers',
+            'type_vocab_size'
+        }
+        
+        filtered_config = {k: v for k, v in config_dict.items() if k in valid_config_keys}
+        
+        config = BertConfig(vocab_size_or_config_json_file=vocab_size, **filtered_config)
+        
+        # Create student model from config
+        student_model = TinyBertForPreTraining(config)
+        
+        logger.info("Created student model with {} parameters".format(sum(p.numel() for p in student_model.parameters())))
+    
     teacher_model = BertModel.from_pretrained(args.teacher_model)
 
     # student_model = TinyBertForPreTraining.from_scratch(args.student_model, fit_size=teacher_model.config.hidden_size)
@@ -487,7 +517,11 @@ def main():
                         output_config_file = os.path.join(args.output_dir, CONFIG_NAME)
 
                         torch.save(model_to_save.state_dict(), output_model_file)
-                        model_to_save.config.to_json_file(output_config_file)
+                        # Save config with vocab_size included
+                        config_dict = model_to_save.config.to_dict()
+                        config_dict['vocab_size'] = len(tokenizer.vocab)
+                        with open(output_config_file, 'w') as f:
+                            json.dump(config_dict, f, indent=2)
                         tokenizer.save_vocabulary(args.output_dir)
 
                         if oncloud:
@@ -502,9 +536,18 @@ def main():
 
             output_model_file = os.path.join(args.output_dir, model_name)
             output_config_file = os.path.join(args.output_dir, CONFIG_NAME)
+            
+            # Also save as the main model file for easy loading
+            final_model_file = os.path.join(args.output_dir, "pytorch_model.bin")
 
             torch.save(model_to_save.state_dict(), output_model_file)
-            model_to_save.config.to_json_file(output_config_file)
+            torch.save(model_to_save.state_dict(), final_model_file)
+            
+            # Save config with vocab_size included
+            config_dict = model_to_save.config.to_dict()
+            config_dict['vocab_size'] = len(tokenizer.vocab)
+            with open(output_config_file, 'w') as f:
+                json.dump(config_dict, f, indent=2)
             tokenizer.save_vocabulary(args.output_dir)
 
             if oncloud:

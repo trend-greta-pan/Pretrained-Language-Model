@@ -1,0 +1,45 @@
+# Requirements for TinyBERT on AWS SageMaker with GPU support
+
+# Core ML dependencies with CUDA support
+# Note: For SageMaker, you should use the CUDA-enabled PyTorch
+# Install with: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Scientific computing
+numpy>=1.21.0,<2.0.0  # Keep <2.0 for compatibility
+scipy>=1.8.0
+scikit-learn>=1.0.0
+
+# Data processing and visualization
+pandas>=1.4.0
+matplotlib>=3.5.0
+seaborn>=0.11.2
+
+# Progress bars and utilities
+tqdm>=4.65.0
+
+# AWS/SageMaker specific
+boto3>=1.26.0  # For S3 access
+sagemaker>=2.100.0  # SageMaker Python SDK
+
+# HTTP requests for model downloads
+requests>=2.28.0
+urllib3>=1.26.0
+
+# Tokenization and NLP
+tokenizers>=0.13.0
+transformers>=4.30.0  # For Hugging Face compatibility
+
+# Additional utilities
+pyyaml>=6.0
+h5py>=3.7.0
+tensorboard>=2.10.0  # For training visualization
+
+# Jupyter/notebook support (if needed)
+ipywidgets>=8.0.0
+notebook>=6.5.0
+
+# For mixed precision training (optional but recommended for A100s)
+apex  # Install separately: pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext" --config-settings "--build-option=--cuda_ext" ./apex

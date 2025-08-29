@@ -1,0 +1,103 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs
+*.log
+debug_layer_loss.log
+log.txt
+
+# Model and data files (too large for git)
+resources/
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.safetensors
+pytorch_model.bin
+model.safetensors
+
+# Training outputs
+output/
+outputs/
+test_output/
+test_general_output/
+tmp_tinybert*/
+task_tinybert*/
+general_tinybert*/
+step_*_pytorch_model.bin
+
+# Data files
+*.json
+*.jsonl
+*.tsv
+*.csv
+*.txt
+!requirements*.txt
+!*.md
+
+# Corpus and datasets
+corpus/
+json_corpus/
+glue/
+data/
+
+# Config files that are auto-generated
+config.json
+!student_4L_312D_config.json
+student_config/
+
+# Vocabulary files
+vocab.txt
+*.vocab
+
+# Temporary files
+*.tmp
+.cache/
+cache/
+
+# Hugging Face cache
+~/.cache/huggingface/
+
+# AWS/SageMaker
+.sagemaker/
+*.tar.gz
+
+# Moxing (Huawei Cloud)
+moxing/
+
+# APEX
+apex/
+
+# Checkpoints
+checkpoint*/
+checkpoints/
+
+# Tensorboard
+runs/
+events.out.tfevents.*

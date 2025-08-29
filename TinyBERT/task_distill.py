@@ -875,7 +875,7 @@ def main():
         logger.info("  Num examples = %d", len(train_examples))
         logger.info("  Batch size = %d", args.train_batch_size)
         logger.info("  Num steps = %d", num_train_optimization_steps)
-        if n_gpu > 1:
+        if n_gpu > 1 and torch.cuda.is_available():
             student_model = torch.nn.DataParallel(student_model)
             teacher_model = torch.nn.DataParallel(teacher_model)
         # Prepare optimizer
