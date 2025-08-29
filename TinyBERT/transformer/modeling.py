@@ -825,8 +825,13 @@ class BertModel(BertPreTrainedModel):
         # positions we want to attend and -10000.0 for masked positions.
         # Since we are adding it to the raw scores before the softmax, this is
         # effectively the same as removing these entirely.
-        extended_attention_mask = extended_attention_mask.to(
-            dtype=next(iter(self.parameters())).dtype if len(list(self.parameters())) > 0 else torch.float32)  # fp16 compatibility
+        # Fix for StopIteration error when model has no parameters
+        params_list = list(self.parameters())
+        if len(params_list) > 0:
+            dtype = params_list[0].dtype
+        else:
+            dtype = torch.float32
+        extended_attention_mask = extended_attention_mask.to(dtype=dtype)  # fp16 compatibility
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
 
         embedding_output = self.embeddings(input_ids, token_type_ids)
